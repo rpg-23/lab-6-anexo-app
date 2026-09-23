@@ -22,7 +22,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  * DataStore escribe en la carpeta privada de la app: ninguna otra app puede
  * leerla, y el sistema la cifra en disco.
  */
-class SesionStore(private val context: Context) {
+class SesionStore(private val context: Context, private val cifrador: Cifrador) {
 
     private object Llaves {
         val USUARIO = stringPreferencesKey("usuario")
@@ -35,8 +35,8 @@ class SesionStore(private val context: Context) {
     /** Emite la sesión guardada, y vuelve a emitir cada vez que cambia. `null` = nadie ha entrado. */
     val sesion: Flow<Sesion?> = context.dataStore.data.map { prefs ->
         val usuario = prefs[Llaves.USUARIO] ?: return@map null
-        val access = prefs[Llaves.ACCESS] ?: return@map null
-        val refresh = prefs[Llaves.REFRESH] ?: return@map null
+        val access = prefs[Llaves.ACCESS]?.let(cifrador::descifrar) ?: return@map null
+        val refresh = prefs[Llaves.REFRESH]?.let(cifrador::descifrar) ?: return@map null
         Sesion(
             usuario = usuario,
             rol = Rol.de(prefs[Llaves.ROL] ?: "alumno"),
@@ -50,8 +50,8 @@ class SesionStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Llaves.USUARIO] = sesion.usuario
             prefs[Llaves.ROL] = sesion.rol.name.lowercase()
-            prefs[Llaves.ACCESS] = sesion.accessToken
-            prefs[Llaves.REFRESH] = sesion.refreshToken
+            prefs[Llaves.ACCESS] = cifrador.cifrar(sesion.accessToken)
+            prefs[Llaves.REFRESH] = cifrador.cifrar(sesion.refreshToken)
             prefs[Llaves.EXPIRA_EN] = sesion.expiraEn
         }
     }
